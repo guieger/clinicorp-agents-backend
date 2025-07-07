@@ -1,0 +1,15 @@
+FROM node:18
+
+WORKDIR /src
+
+COPY package*.json ./
+
+RUN npm install
+
+RUN npm install -g ts-node-dev
+
+COPY . .
+
+EXPOSE 3002
+
+CMD sh -c "npx prisma generate && npx prisma migrate dev && ts-node-dev --respawn --transpile-only src/server.ts"

@@ -1,0 +1,169 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DEV_DATABASE_URL")
+}
+
+model Account {
+  Id                    String                  @id @default(uuid()) @db.Char(36)
+  Name                  String                  @db.Text
+  PhoneNumber           String                  @db.Text
+  IsActive              Boolean                 @default(true)
+  CreatedAt             DateTime                @db.Timestamp(0)
+  IsConnected           Boolean                 @default(false)
+  ConversationToken     String?                 @db.VarChar(255)
+  accountLogs           AccountLog[]
+  AgentConfig           AgentConfig[]
+  Channel               Channel[]
+  Conversations         Conversations[]
+  CustomMessageTemplate CustomMessageTemplate[]
+  ScalingConfig         ScalingConfig[]
+  Users                 Users[]
+}
+
+model AccountLog {
+  Id          String   @id @default(uuid()) @db.Char(36)
+  AccountId   String   @db.Char(36)
+  UserId      String   @db.Char(36)
+  EntityType  String   @db.VarChar(100)
+  EntityId    String   @db.Char(36)
+  Action      String   @db.VarChar(50)
+  Changes     Json
+  Description String   @db.Text
+  CreatedAt   DateTime @db.Timestamp(0)
+  account     Account  @relation(fields: [AccountId], references: [Id])
+  user        Users    @relation(fields: [UserId], references: [Id])
+
+  @@index([AccountId], map: "AccountLog_AccountId_fkey")
+  @@index([UserId], map: "AccountLog_UserId_fkey")
+}
+
+model Channel {
+  Id             String    @id @default(uuid()) @db.Char(36)
+  IsConnected    Boolean
+  AccountId      String?   @db.Char(36)
+  ActivationDate DateTime? @db.Timestamp(0)
+  Name           String    @db.VarChar(254)
+  Account        Account?  @relation(fields: [AccountId], references: [Id], onDelete: Restrict, map: "Channel_ClientId_fkey")
+
+  @@unique([AccountId, Name], map: "unique_account_channel_name")
+}
+
+model ScalingConfig {
+  Id                 String   @id @default(uuid()) @db.Char(36)
+  KeyWords           String   @db.VarChar(254)
+  MaxRetries         String   @db.VarChar(2)
+  AutoScalingOnFails Boolean
+  AccountId          String?  @db.Char(36)
+  Account            Account? @relation(fields: [AccountId], references: [Id], onDelete: Restrict, map: "ScalingConfig_ClientId_fkey")
+
+  @@index([AccountId], map: "ScalingConfig_ClientId_fkey")
+}
+
+model AgentConfig {
+  Id              String   @id @default(uuid()) @db.Char(36)
+  AgentName       String   @db.VarChar(254)
+  WorkingSchedule String   @db.VarChar(20)
+  AccountId       String?  @db.Char(36)
+  Name            String   @db.VarChar(254)
+  Account         Account? @relation(fields: [AccountId], references: [Id], onDelete: Restrict, map: "AgentConfig_ClientId_fkey")
+
+  @@index([AccountId], map: "AgentConfig_ClientId_fkey")
+}
+
+model Conversations {
+  Channel       String    @db.VarChar(20)
+  AccountId     String?   @db.Char(36)
+  Id            String    @id @default(uuid()) @db.Char(36)
+  LastMessageAt DateTime  @db.Timestamp(0)
+  PatientName   String    @db.Text
+  PatientPhone  String    @db.Text
+  StartedAt     DateTime  @db.Timestamp(0)
+  Status        String    @db.VarChar(20)
+  Account       Account?  @relation(fields: [AccountId], references: [Id], onDelete: Restrict, map: "Conversations_ClientId_fkey")
+  messages      Message[]
+
+  @@index([AccountId], map: "Conversations_ClientId_fkey")
+}
+
+model Message {
+  Id               String             @id @default(uuid()) @db.Char(36)
+  ConversationId   String             @db.Char(36)
+  Sender           String             @db.VarChar(20)
+  Type             String             @db.VarChar(20)
+  Content          String             @db.Text
+  Status           String             @db.VarChar(20)
+  Timestamp        DateTime           @db.Timestamp(0)
+  PatientName      String             @db.VarChar(254)
+  ExternalId       String?            @db.Char(36)
+  conversation     Conversations      @relation(fields: [ConversationId], references: [Id])
+  messagesTracking MessagesTracking[]
+
+  @@index([ConversationId], map: "Message_ConversationId_fkey")
+}
+
+model MessageTemplate {
+  Id              String                  @id @default(uuid()) @db.Char(36)
+  Name            String                  @db.VarChar(100)
+  Type            String                  @db.VarChar(50)
+  Content         String                  @db.Text
+  Variables       Json
+  Channel         String                  @db.VarChar(20)
+  IsActive        Boolean
+  IsEditable      Boolean
+  CreatedAt       DateTime                @db.Timestamp(0)
+  customTemplates CustomMessageTemplate[]
+}
+
+model CustomMessageTemplate {
+  Id                 String           @id @default(uuid()) @db.Char(36)
+  AccountId          String?          @db.Char(36)
+  Name               String           @db.VarChar(100)
+  OriginalTemplateId String?          @db.Char(36)
+  Content            String           @db.Text
+  Variables          Json
+  Channel            String           @db.VarChar(20)
+  IsActive           Boolean
+  CreatedAt          DateTime         @db.Timestamp(0)
+  Account            Account?         @relation(fields: [AccountId], references: [Id], onDelete: Restrict, map: "CustomMessageTemplate_ClientId_fkey")
+  originalTemplate   MessageTemplate? @relation(fields: [OriginalTemplateId], references: [Id])
+
+  @@index([AccountId], map: "CustomMessageTemplate_ClientId_fkey")
+  @@index([OriginalTemplateId], map: "CustomMessageTemplate_OriginalTemplateId_fkey")
+}
+
+model MessagesTracking {
+  Id                BigInt   @id @default(autoincrement())
+  MessageId         String   @db.Char(36)
+  ExternalMessageId String   @db.VarChar(100)
+  Provider          String   @db.VarChar(50)
+  To                String   @db.VarChar(20)
+  Payload           Json
+  ProviderMessageId String   @db.VarChar(100)
+  Status            String   @db.VarChar(20)
+  ErrorMessage      String?  @db.Text
+  LastResponse      Json
+  Attempts          Int
+  CreatedAt         DateTime @db.Timestamp(0)
+  UpdatedAt         DateTime @db.Timestamp(0)
+  message           Message  @relation(fields: [MessageId], references: [Id])
+
+  @@index([MessageId], map: "MessagesTracking_MessageId_fkey")
+}
+
+model Users {
+  Id           String       @id @db.Char(36)
+  AccountId    String?      @db.Char(36)
+  Name         String       @db.VarChar(254)
+  Email        String       @unique(map: "User_Email_key") @db.VarChar(254)
+  PasswordHash String       @db.VarChar(512)
+  IsActive     Boolean      @default(true)
+  CreatedAt    DateTime     @db.Timestamp(0)
+  accountLogs  AccountLog[]
+  Account      Account?     @relation(fields: [AccountId], references: [Id], onDelete: Restrict, map: "User_ClientId_fkey")
+
+  @@index([AccountId], map: "User_ClientId_fkey")
+}
