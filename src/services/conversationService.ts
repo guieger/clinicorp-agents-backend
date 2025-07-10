@@ -3,8 +3,14 @@ import { httpService } from './HttpService';
 import axios from 'axios';
 import { v4 as uuidv4 } from 'uuid';
 import { uploadAudio, generateSignedUrl } from '../utils/googleCloudStorage';
-import { runAgent } from '../lib/agentsSDK';
+import { processMessage } from '../lib/agentsSDK';
 
+// Função para verificar se o tipo de mensagem é suportado
+function isMessageTypeSupported(message: string, audioUrl?: string): boolean {
+  const hasValidText = Boolean(message && message.trim() && message.trim() !== "Tipo de mensagem não suportado");
+  const hasAudio = Boolean(audioUrl && audioUrl.trim());
+  return hasValidText || hasAudio;
+}
 
 export const  ConversationService = {
 
@@ -101,9 +107,11 @@ export const  ConversationService = {
             throw new Error('Erro ao criar conversa');
         }
 
+        console.log('🔥 message >>:', message)
+
         const messageData: any = {
             ConversationId: conversationId,
-            Content: message,
+            Content: message || "-",
             Sender: sender,
             Type: "text",
             Status: status,
@@ -145,6 +153,8 @@ export const  ConversationService = {
     }
   },
 
+
+
   async handleExternalSaveMessage(params: { 
     patientPhone: string, 
     message: string,
@@ -156,12 +166,10 @@ export const  ConversationService = {
   }) {
 
     const {patientPhone, message, sender, clientPhone, senderName, providerMessageId, audioUrl } = params;
-    const externalAudioUrl = audioUrl;
 
     try {
-        // Normaliza os números de telefone caso necessário. Não é necessário para o momento. PhoneUtils.normalizeBrazilianNumber
+        // Busca o cliente
         const normalizedClientPhone = clientPhone;
-
         const client = await crud.findFirst('account', {
             PhoneNumber: normalizedClientPhone
         }) as { Id: string };
@@ -170,17 +178,14 @@ export const  ConversationService = {
             throw new Error('Cliente não encontrado');
         }
 
-        console.log('🔥 client >>:', client)
-        console.log('🔥 normalizedPatientPhone >>:', patientPhone)
-
-        // Valida se a mensagem existe e determina o tipo
+        // Valida se a mensagem existe
         let messageContent = message;
-        
-        if(!messageContent && !externalAudioUrl){
+        if(!messageContent && !audioUrl){
           messageContent = "Tipo de mensagem não suportado";
         } 
 
-        await this.saveMessage({
+        // Salva a mensagem no banco
+        const saveMessageResult = await this.saveMessage({
             accountId: client.Id,
             phone: patientPhone,
             message: messageContent,
@@ -188,24 +193,43 @@ export const  ConversationService = {
             patientName: senderName,
             status: "sent",
             externalId: providerMessageId,
-            externalAudioUrl
+            externalAudioUrl: audioUrl
         });
 
 
-        let result: string | undefined;
-        result = await runAgent(`Responda essa mensagem: ${messageContent}`)
+        // Se o remetente for o usuário, não processa a mensagem com o agente
+        if(sender === "user" || !isMessageTypeSupported(messageContent, audioUrl)){
+          return {
+            success: true,
+            agentResponse: null,
+            saveResult: saveMessageResult
+          }
+        }
+        // Processa a mensagem com o agente (toda lógica fica na lib)
+        const agentResponse = await processMessage({
+            message: messageContent,
+            externalAudioUrl: audioUrl,
+            providerMessageId
+        });
 
-        if (result) {
+        console.log('🔥 agentResponse >>:', agentResponse)
+
+        // Envia a resposta se houver
+        if (saveMessageResult.success && agentResponse) {
             this.handleSendMessage({
                 accountId: client.Id,
                 phone: patientPhone,
-                message: result,
+                message: agentResponse,
                 sender: 'user',
                 editMessageId: undefined
             });
         }
 
-        return result;
+        return {
+            success: true,
+            agentResponse: agentResponse,
+            saveResult: saveMessageResult
+        };
 
     } catch (error) {
         console.error('❌ Erro ao salvar mensagem:', error)
