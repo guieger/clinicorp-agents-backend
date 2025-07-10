@@ -9,13 +9,16 @@
     },
     "dependencies": {
         "@gomomento/sdk": "^1.111.0",
+        "@google-cloud/storage": "^7.16.0",
+        "@openai/agents": "^0.0.10",
         "@prisma/client": "^6.10.1",
         "@types/uuid": "^10.0.0",
         "axios": "^1.6.0",
         "cors": "^2.8.5",
         "dotenv": "^16.0.3",
         "express": "^4.18.2",
-        "uuid": "^11.1.0"
+        "uuid": "^11.1.0",
+        "zod": "^3.25.76"
     },
     "devDependencies": {
         "@types/cors": "^2.8.19",

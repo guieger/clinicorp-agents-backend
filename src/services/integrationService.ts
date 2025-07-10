@@ -10,25 +10,25 @@ export class IntegrationService {
    * Busca a configuração de integração ativa para um cliente específico
    */
   static async getActiveIntegrationConfig(accountId: string): Promise<IntegrationConfig> {
-      const integration = await crud.findFirst('integration', 
-        {
-          accountId,
-          isActive: true
-        },
-        {
-          config: true
-        }
-      ) as { config: IntegrationConfig };
+    //   const integration = await crud.findFirst('integration', 
+    //     {
+    //       accountId,
+    //       isActive: true
+    //     },
+    //     {
+    //       config: true
+    //     }
+    //   ) as { config: IntegrationConfig };
 
-    if (!integration) {
-      throw new Error('Integração não encontrada para o client.');
-    }
+    // if (!integration) {
+    //   throw new Error('Integração não encontrada para o client.');
+    // }
 
-    if (!integration.config) {
-      throw new Error('Configuração da integração não encontrada.');
-    }
+    // if (!integration.config) {
+    //   throw new Error('Configuração da integração não encontrada.');
+    // }
 
-    return integration.config as IntegrationConfig;
+    // return integration.config as IntegrationConfig;
   }
 
   /**
@@ -36,7 +36,7 @@ export class IntegrationService {
    */
   static async validateIntegration(accountId: string): Promise<boolean> {
     try {
-      await this.getActiveIntegrationConfig(accountId);
+      // await this.getActiveIntegrationConfig(accountId);
       return true;
     } catch (error) {
       return false;

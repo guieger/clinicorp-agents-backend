@@ -1,7 +1,8 @@
 import { ConfigCore } from "./configCore";
-import { crud } from "../../utils/crud";
-import { BusinessError } from "../../utils/errors";
+import { crud } from "../utils/crud";
+import { BusinessError } from "../utils/errors";
 import { Channel } from "@prisma/client";
+import { httpService } from "./HttpService";
 
 interface Account {
     Id: string;
@@ -68,16 +69,10 @@ export const ConfigService = {
         
         const clientToken = account.ConversationToken;
 
-        const warpAccountResponse = await fetch(`http://localhost:3000/api/account/${clientToken}`, {
-            method: 'GET',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${clientToken}`
-            },
-        });
+        const response = await httpService.getAccountByToken(clientToken);
 
-        if (!warpAccountResponse.ok) {
-            throw new BusinessError('Erro ao buscar conta', warpAccountResponse.status);
+        if (!response.ok) {
+            throw new BusinessError('Erro ao buscar conta', response.status);
         }
 
         return {
@@ -184,6 +179,15 @@ export const ConfigService = {
             console.error('❌ Erro ao verificar vinculação de conta:', error)
             throw error;
         }
+    },
+
+    async getTemplateMessage(accountId: string) {
+        const account = await crud.findById('account', accountId) as Account;
+        // return account.TemplateMessage;
+        return (`Olá, ${account.Name}! Feliz aniversário. Que a saúde, o bem-estar e a alegria estejam presentes em todos os dias do seu novo ciclo.
+            A Clínica Exemplo agradece por sua confiança e se sente honrada por fazer parte da sua história. E em comemoração ao seu aniversário, você ganhou um benefício especial para utilizar nos próximos 30 dias.
+            Quando quiser utilizar, é só responder essa mensagem que te explicaremos melhor.
+            Conte conosco para continuar cuidando de você com carinho e dedicação!`);
     }
 
 

@@ -4,6 +4,9 @@ interface StandardPayload {
   clientPhone: string;
   senderName: string;
   sender: string;
+  providerMessageId: string;
+  audioUrl?: string;
+  fromMe?: boolean;
 }
 
 export function translateWebhookPayload(provider: string, _payload: any): StandardPayload {
@@ -15,7 +18,10 @@ export function translateWebhookPayload(provider: string, _payload: any): Standa
       message: _payload.message,
       clientPhone: _payload.connectedPhone,
       senderName: _payload.senderName,
-      sender: 'patient'
+      sender: 'patient',
+      providerMessageId: _payload.messageId || _payload.id || '',
+      audioUrl: _payload.audioUrl || '',
+      fromMe: _payload.fromMe || false
     };
   }
 

@@ -99,6 +99,8 @@ model Message {
   Timestamp        DateTime           @db.Timestamp(0)
   PatientName      String             @db.VarChar(254)
   ExternalId       String?            @db.Char(36)
+  IsEdited         Boolean?
+  AudioPath        String?            @db.VarChar(255)
   conversation     Conversations      @relation(fields: [ConversationId], references: [Id])
   messagesTracking MessagesTracking[]
 

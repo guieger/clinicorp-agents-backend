@@ -1,13 +1,13 @@
 import { Router, Response, Request } from 'express';
 import { clientMiddleware, AuthenticatedRequest } from '../middleware/clientMiddleware';
-import { ConversationService } from '../services/conversation/conversationService';
+import { ConversationService } from '../services/conversationService';
 
 
 const router = Router();
 
 router.post('/send_message', clientMiddleware, async (request: Request, response: Response) => {
     try {
-        const { message, phone, sender } = request.body;
+        const { message, phone, sender, editMessageId } = request.body;
         console.log('🔥 message:', message)
         const authenticatedRequest = request as AuthenticatedRequest;
         console.log('🔥 authenticatedRequest:', authenticatedRequest.accountId)
@@ -16,7 +16,8 @@ router.post('/send_message', clientMiddleware, async (request: Request, response
           accountId: authenticatedRequest.accountId,
           phone: phone,
           message: message,
-          sender: sender
+          sender: sender,
+          editMessageId: editMessageId
         });
 
         console.log('✅ Mensagem enviada com sucesso');
@@ -54,8 +55,6 @@ router.get('/list_messages', async (req: Request, res: Response) => {
       });
     }
 
-    console.log('🔥 accountId:', accountId)
-
     const messages = await ConversationService.listMessages({ accountId: accountId as string });
 
     return res.json({ messages });
@@ -63,6 +62,19 @@ router.get('/list_messages', async (req: Request, res: Response) => {
     console.error('Erro ao listar mensagens:', error);
     return res.status(500).json({ 
       error: 'Erro ao listar mensagens' 
+    });
+  }
+});
+
+router.delete('/delete_message', async (req: Request, res: Response) => {
+  try {
+    const { messageId, accountId, phone, owner } = req.body;
+    await ConversationService.deleteMessage({ messageId, accountId, phone, owner });
+    return res.json({ success: true, message: 'Mensagem deletada' });
+  } catch (error) {
+    console.error('Erro ao deletar mensagem:', error);
+    return res.status(500).json({ 
+      error: 'Erro ao deletar mensagem' 
     });
   }
 });

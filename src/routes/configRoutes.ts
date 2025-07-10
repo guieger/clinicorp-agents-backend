@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { ConfigService } from '../services/config/configService';
+import { ConfigService } from '../services/configService';
 import { handleError } from '../utils/errorHandler';
 
 const router = Router();

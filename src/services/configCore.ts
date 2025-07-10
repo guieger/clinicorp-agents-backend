@@ -1,4 +1,5 @@
-import { BusinessError } from "../../utils/errors";
+import { BusinessError } from "../utils/errors";
+import { httpService } from "./HttpService";
 
     interface QrcodeImageResponse {
     token: string;
@@ -10,17 +11,9 @@ export const ConfigCore = {
 
 
         try {
-            const response = await fetch(`http://localhost:3000/api/account/instance/qrcode/${clientToken}`, {
-                method: 'GET',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${clientToken}`
-                }
-            });
+            const response = await httpService.getQrCode(clientToken);
             
-            const data = await response.json();
-
-            return data;
+            return response.data;
         } catch (error) {
             console.error('❌ Erro ao obter o QRCode:', error)
             throw error;
@@ -82,20 +75,11 @@ export const ConfigCore = {
         console.log('🔥 channelName >>:', channelName)
         
         try {
-            const response = await fetch(`http://localhost:3000/api/account/channel/activate`,{
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${clientToken}`
-                },
-                body: JSON.stringify({
-                    clientToken: clientToken,
-                    channelName: channelName
-                })
+            const response = await httpService.activateChannel({
+                clientToken: clientToken,
+                channelName: channelName
             });
-
-            const data = await response.json();
-            return data;
+            return response.data;
         } catch (error) {
             console.error('❌ Erro ao ativar canal:', error)
             throw error;
@@ -107,21 +91,12 @@ export const ConfigCore = {
         console.log('🔥 channelName >>:', channelName)
 
         try {
-            const response = await fetch(`http://localhost:3000/api/account/channel/create`,{
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${conversationToken}`
-                },
-                body: JSON.stringify({
-                    conversationToken: conversationToken,
-                    channelName: channelName
-                })
+            const response = await httpService.createChannel({
+                conversationToken: conversationToken,
+                channelName: channelName
             });
 
-            const data = await response.json();
-
-            return data;
+            return response.data;
         } catch (error) {
             console.error('❌ Erro ao criar canal:', error)
             throw error;
@@ -133,25 +108,16 @@ export const ConfigCore = {
         console.log('🔥 accountId >>:', accountId)
 
         try {
-            const response = await fetch(`http://localhost:3000/api/account/vinculate`,{
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${conversationToken}`
-                },
-                body: JSON.stringify({
-                    conversationToken: conversationToken,
-                    accountId: accountId
-                })
+            const response = await httpService.vinculate({
+                conversationToken: conversationToken,
+                accountId: accountId
             });
 
-            const data = await response.json();
-
-            if (response.status !== 200) {
-                throw new BusinessError('Erro ao vincular conta: ' + response.statusText, response.status);
+            if (!response.ok) {
+                throw new BusinessError('Erro ao vincular conta', response.status);
             }
 
-            return data;
+            return response.data;
         } catch (error) {
             console.error('❌ Erro ao vincular conversa:', error)
             throw new Error('Erro ao vincular conta: ' + error);
@@ -163,16 +129,8 @@ export const ConfigCore = {
         console.log('🔥 accountId >>:', accountId)
 
         try {
-            const response = await fetch(`http://localhost:3000/api/account/vinculated?clientId=${accountId}`,{
-                method: 'GET',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${conversationToken}`
-                }
-            });
-
-            const data = await response.json();
-            return data;
+            const response = await httpService.getVinculated(accountId);
+            return response.data;
         } catch (error) {   
             console.error('❌ Erro ao verificar vinculação de conta:', error)
             throw error;
