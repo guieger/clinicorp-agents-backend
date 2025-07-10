@@ -5,6 +5,8 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
+dev-clinicorp-agents-2ca03aa7d502.json
+
 # Runtime data
 pids
 *.pid
