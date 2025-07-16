@@ -1,66 +1,107 @@
 import { Router, Request, Response } from 'express';
 import { handleError } from '../utils/errorHandler';
-import { solutionCore } from '../services/solutions/solutionsCore';
-import { runAgent } from '../lib/agentsSDK';
+import { runAgent } from '../lib/agents/agentsSDK';
 import { ConfigService } from '../services/configService';
+import { TaskService } from '../services/TaskService';
 
 const router = Router();
 
 router.post('/birthdays_queue', async (req: Request, res: Response) => {
     try {
-        const { date, subscriberId, solution = 'clinicorp' } = req.body;
+        const { solution = 'clinicorp' } = req.body;
 
-        if (!date || !subscriberId) {
+        if (!solution) {
             return res.status(400).json({
                 success: false,
                 message: 'Parâmetros obrigatórios: date e subscriberId'
             });
+        }        
+
+        const summary = await TaskService.createBirthdayTasks(solution);
+
+        const hasErrors = summary.tasksErrorsCount > 0;
+        const hasSuccess = summary.tasksCreatedCount > 0;
+        
+        let success = false;
+        let message = '';
+
+        if (hasErrors && !hasSuccess) {
+            // Falha total - nenhuma task foi criada
+            success = false;
+            message = `Falha ao criar tasks de aniversário. ${summary.tasksErrorsCount} erro(s) encontrado(s).`;
+        } else if (hasErrors && hasSuccess) {
+            // Sucesso parcial - algumas tasks foram criadas, outras falharam
+            success = true;
+            message = `Tasks de aniversário criadas com sucesso parcial. ${summary.tasksCreatedCount} criada(s), ${summary.tasksErrorsCount} erro(s).`;
+        } else {
+            // Sucesso total - todas as tasks foram criadas
+            success = true;
+            message = `Tasks de aniversário criadas com sucesso. ${summary.tasksCreatedCount} task(s) criada(s).`;
         }
 
-        const birthdays = await solutionCore(solution).getBirthdays(date, subscriberId);
-
-        //criar fila do ETM
-
         return res.json({ 
-            success: true, 
-            message: 'Aniversariantes listados', 
-            birthdays 
+            success,
+            message,
+            summary: {
+                totalBirthdays: summary.totalTasks,
+                tasksCreated: summary.tasksCreatedCount,
+                tasksErrors: summary.tasksErrorsCount
+            },
+            tasksCreated: summary.tasksCreated,
+            tasksErrors: summary.tasksErrors
         });
     } catch (error) {
-        handleError(error, res, 'Erro ao buscar aniversariantes', req);
+        handleError(error, res, 'Erro ao criar tasks de aniversário', req);
     }
 });
 
 router.post('/execute_birthdays_task', async (req: Request, res: Response) => {
     try {
 
-        const mockedResult =   {
-            Name: 'Guilherme Eger',
-            BirthDate: '1998-11-27T02:00:00.000Z',
-            Age: 26,
-            MobilePhone: '554784041066'
+        const { Name, BirthDate, Age, MobilePhone, accountId } = req.body;
+        //retornar estrutura de retorno do ETM 
+
+        if(!accountId || !Name || !BirthDate || !Age || !MobilePhone) {
+            return res.status(400).json({
+                success: false,
+                message: 'Parâmetros obrigatórios: accountId'
+            });
         }
 
-        const toneOfVoice: string = "Formal";
-        const formattedPhone = mockedResult.MobilePhone.replace('(', '').replace(')', '').replace('-', '');
-        const accountId: string = 'a1a473db-55cc-11f0-aa9d-7ac2abadd37a';
-        const usingTemplate: boolean = true;
+        console.log('🔥 req.body execute_birthdays_task >>:', req.body)
+
+        const formattedPhone = MobilePhone.replace('(', '').replace(')', '').replace('-', '');
+        
+        const config = await ConfigService.getActivity(accountId, 'birthday', {
+            ToneOfVoice: true,
+            TemplateId: true
+        }) as { ToneOfVoice?: string; TemplateId?: string };
+
+        if(!config) { 
+            return res.status(400).json({
+                success: false,
+                message: 'Configuração não encontrada'
+            });
+        }
+
+        const toneOfVoice: string = config?.ToneOfVoice || "Formal";
+        const usingTemplate: boolean = config?.TemplateId ? true : false;
+        const templateId: string = config?.TemplateId || '';
         let message: string | undefined;
 
         //vai executar a tarefa de aniversariantes
-        if (usingTemplate) {
-            message = await ConfigService.getTemplateMessage(accountId);
+        if (usingTemplate && templateId) {
+            message = await ConfigService.getTemplateMessage(Name, templateId, { Name, BirthDate, Age });
         } else {
-            message = await runAgent(`
-                Escreva uma mensagem de aniversário para esse paciente: ${JSON.stringify(mockedResult)}
+            const agentResult = await runAgent(`
+                Escreva uma mensagem de aniversário para esse paciente: ${JSON.stringify({Name, BirthDate, Age})}
                 Com o tom de voz: ${toneOfVoice}
                 Essa mensagem vai ser enviada para o paciente pelo WhatsApp diretamente, então já monte nesse modelo sem me responder com nada, apenas a mensagem.
-            `);
+            `, []);
+            
+            message = typeof agentResult === 'string' ? agentResult : (agentResult as any).response;
         }
 
-        //Aqui
-        
-        // Enviar a mensagem gerada pelo agente
         if (message) {
             try {
                 const { ConversationService } = await import('../services/conversationService');

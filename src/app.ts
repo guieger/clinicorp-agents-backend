@@ -5,6 +5,7 @@ import webhookRoutes from './routes/webhookRoutes';
 import conversationRoutes from './routes/conversationRoutes';
 import configRoutes from './routes/configRoutes';
 import jobRoutes from './routes/jobRoutes';
+import cloudRoutes from './routes/cloudRoutes';
 
 const app = express();
 app.use(cors()); // Permite todas as origens (ideal só para desenvolvimento)
@@ -20,17 +21,16 @@ app.use(express.json());
 
 // 📤 Envio de mensagens
 app.use('/api/messaging', messageRoutes);
-
 // Conversas
 app.use('/api/conversation', conversationRoutes);
-
 // 📥 Recebimento de webhooks
 app.use('/api/webhook', webhookRoutes);
-
 // Configurações 
 app.use('/api/config', configRoutes);
 
 app.use('/api/jobs', jobRoutes);
+
+app.use('/api/cloud', cloudRoutes);
 
 // Health check
 app.get('/', (req, res) => {

@@ -39,11 +39,12 @@ export const crud = {
     return (prisma[model] as any).delete({ where: { id } });
   },
 
-  findMany: async <T>(model: keyof typeof prisma, where?: any, select?: any, orderBy?: any): Promise<T[]> => {
+  findMany: async <T>(model: keyof typeof prisma, where?: any, select?: any, orderBy?: any, take?: number): Promise<T[]> => {
     return (prisma[model] as any).findMany({ 
       ...(where && { where }),
       ...(select && { select }),
-      ...(orderBy && { orderBy })
+      ...(orderBy && { orderBy }),
+      ...(take && { take })
     });
   },
 

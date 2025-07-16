@@ -15,9 +15,11 @@ model Account {
   CreatedAt             DateTime                @db.Timestamp(0)
   IsConnected           Boolean                 @default(false)
   ConversationToken     String?                 @db.VarChar(255)
+  ExternalSubscriberId  String?                 @db.Char(36)
   accountLogs           AccountLog[]
   AgentConfig           AgentConfig[]
   Channel               Channel[]
+  Config                Config[]
   Conversations         Conversations[]
   CustomMessageTemplate CustomMessageTemplate[]
   ScalingConfig         ScalingConfig[]
@@ -75,63 +77,54 @@ model AgentConfig {
 }
 
 model Conversations {
-  Channel       String    @db.VarChar(20)
-  AccountId     String?   @db.Char(36)
-  Id            String    @id @default(uuid()) @db.Char(36)
-  LastMessageAt DateTime  @db.Timestamp(0)
-  PatientName   String    @db.Text
-  PatientPhone  String    @db.Text
-  StartedAt     DateTime  @db.Timestamp(0)
-  Status        String    @db.VarChar(20)
-  Account       Account?  @relation(fields: [AccountId], references: [Id], onDelete: Restrict, map: "Conversations_ClientId_fkey")
-  messages      Message[]
+  Channel             String                @db.VarChar(20)
+  AccountId           String?               @db.Char(36)
+  Id                  String                @id @default(uuid()) @db.Char(36)
+  LastMessageAt       DateTime              @db.Timestamp(0)
+  PatientName         String                @db.Text
+  PatientPhone        String                @db.Text
+  StartedAt           DateTime              @db.Timestamp(0)
+  Status              String                @db.VarChar(20)
+  ConversationWindows ConversationWindows[]
+  Account             Account?              @relation(fields: [AccountId], references: [Id], onDelete: Restrict, map: "Conversations_ClientId_fkey")
+  messages            Message[]
 
   @@index([AccountId], map: "Conversations_ClientId_fkey")
 }
 
 model Message {
-  Id               String             @id @default(uuid()) @db.Char(36)
-  ConversationId   String             @db.Char(36)
-  Sender           String             @db.VarChar(20)
-  Type             String             @db.VarChar(20)
-  Content          String             @db.Text
-  Status           String             @db.VarChar(20)
-  Timestamp        DateTime           @db.Timestamp(0)
-  PatientName      String             @db.VarChar(254)
-  ExternalId       String?            @db.Char(36)
-  IsEdited         Boolean?
-  AudioPath        String?            @db.VarChar(255)
-  conversation     Conversations      @relation(fields: [ConversationId], references: [Id])
-  messagesTracking MessagesTracking[]
+  Id                   String               @id @default(uuid()) @db.Char(36)
+  ConversationId       String               @db.Char(36)
+  Sender               String               @db.VarChar(20)
+  Type                 String               @db.VarChar(20)
+  Content              String               @db.Text
+  Status               String               @db.VarChar(20)
+  Timestamp            DateTime             @db.Timestamp(0)
+  PatientName          String               @db.VarChar(254)
+  ExternalId           String?              @db.Char(36)
+  IsEdited             Boolean?
+  AudioPath            String?              @db.VarChar(255)
+  ConversationWindowId String?              @db.Char(36)
+  ConversationWindows  ConversationWindows? @relation(fields: [ConversationWindowId], references: [Id], onDelete: NoAction, onUpdate: NoAction, map: "FK_Messages_ConversationWindow")
+  conversation         Conversations        @relation(fields: [ConversationId], references: [Id])
+  messagesTracking     MessagesTracking[]
 
   @@index([ConversationId], map: "Message_ConversationId_fkey")
-}
-
-model MessageTemplate {
-  Id              String                  @id @default(uuid()) @db.Char(36)
-  Name            String                  @db.VarChar(100)
-  Type            String                  @db.VarChar(50)
-  Content         String                  @db.Text
-  Variables       Json
-  Channel         String                  @db.VarChar(20)
-  IsActive        Boolean
-  IsEditable      Boolean
-  CreatedAt       DateTime                @db.Timestamp(0)
-  customTemplates CustomMessageTemplate[]
+  @@index([ConversationWindowId], map: "FK_Messages_ConversationWindow")
 }
 
 model CustomMessageTemplate {
-  Id                 String           @id @default(uuid()) @db.Char(36)
-  AccountId          String?          @db.Char(36)
-  Name               String           @db.VarChar(100)
-  OriginalTemplateId String?          @db.Char(36)
-  Content            String           @db.Text
+  Id                 String            @id @default(uuid()) @db.Char(36)
+  AccountId          String?           @db.Char(36)
+  Name               String            @db.VarChar(100)
+  OriginalTemplateId String?           @db.Char(36)
+  Content            String            @db.Text
   Variables          Json
-  Channel            String           @db.VarChar(20)
+  Channel            String            @db.VarChar(20)
   IsActive           Boolean
-  CreatedAt          DateTime         @db.Timestamp(0)
-  Account            Account?         @relation(fields: [AccountId], references: [Id], onDelete: Restrict, map: "CustomMessageTemplate_ClientId_fkey")
-  originalTemplate   MessageTemplate? @relation(fields: [OriginalTemplateId], references: [Id])
+  CreatedAt          DateTime          @db.Timestamp(0)
+  Account            Account?          @relation(fields: [AccountId], references: [Id], onDelete: Restrict, map: "CustomMessageTemplate_ClientId_fkey")
+  originalTemplate   MessageTemplates? @relation(fields: [OriginalTemplateId], references: [Id])
 
   @@index([AccountId], map: "CustomMessageTemplate_ClientId_fkey")
   @@index([OriginalTemplateId], map: "CustomMessageTemplate_OriginalTemplateId_fkey")
@@ -168,4 +161,46 @@ model Users {
   Account      Account?     @relation(fields: [AccountId], references: [Id], onDelete: Restrict, map: "User_ClientId_fkey")
 
   @@index([AccountId], map: "User_ClientId_fkey")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model Config {
+  Id                 String   @id @default(dbgenerated("(uuid())")) @db.Char(36)
+  ActivityType       String   @db.VarChar(254)
+  Active             Int?     @default(1) @db.TinyInt
+  ToneOfVoice        String?  @db.VarChar(50)
+  DispatchHour       Int?
+  TemplateType       String?  @db.VarChar(255)
+  HasFollowUp        Int?     @default(1) @db.TinyInt
+  FollowUpDelayHours Int?
+  AccountId          String?  @db.Char(36)
+  DispatchMinute     Int?     @db.TinyInt
+  TemplateId         String?  @db.Char(36)
+  Account            Account? @relation(fields: [AccountId], references: [Id], onDelete: NoAction, onUpdate: NoAction, map: "Config_ibfk_1")
+
+  @@index([AccountId], map: "AccountId")
+}
+
+model MessageTemplates {
+  Id              String                  @id @default(dbgenerated("(uuid())")) @db.Char(36)
+  Name            String                  @db.VarChar(100)
+  Type            String                  @db.VarChar(50)
+  Content         String                  @db.Text
+  Variables       Json
+  Channel         String?                 @db.VarChar(255)
+  IsActive        Boolean
+  IsEditable      Boolean
+  CreatedAt       DateTime                @db.Timestamp(0)
+  customTemplates CustomMessageTemplate[]
+}
+
+model ConversationWindows {
+  Id             String        @id @default(dbgenerated("(uuid())")) @db.Char(36)
+  ConversationId String        @db.Char(36)
+  StartedAt      DateTime      @default(now()) @db.Timestamp(0)
+  EndedAt        DateTime?     @db.Timestamp(0)
+  Conversations  Conversations @relation(fields: [ConversationId], references: [Id], onDelete: Cascade, map: "ConversationWindows_ibfk_1")
+  Message        Message[]
+
+  @@index([ConversationId], map: "ConversationId")
 }

@@ -97,7 +97,12 @@ export class HttpService {
   }
 
   async getQrCode(token: string): Promise<HttpResponse> {
-    return this.makeRequest(API_URLS.ACCOUNT.QR_CODE(token));
+    return this.makeRequest(API_URLS.ACCOUNT.QR_CODE(token), {
+      method: 'GET',
+      headers: {
+        'Client-Token': token
+      }
+    });
   }
 
   async activateChannel(payload: any): Promise<HttpResponse> {

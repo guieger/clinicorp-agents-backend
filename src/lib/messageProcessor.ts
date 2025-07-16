@@ -67,4 +67,11 @@ export class MessageProcessor {
       throw new Error('Nenhum conteúdo válido fornecido para processamento');
     }
   }
+
+  static async processHistory(history: any[]): Promise<any[]> {
+    return history.map(item => ({
+      role: item.Sender === 'user' ? 'user' : 'assistant',
+      content: item.Content
+    }));
+  }
 } 

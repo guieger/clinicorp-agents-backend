@@ -3,12 +3,12 @@ export interface BirthdayData {
   Name: string;
   BirthDate: string;
   Email?: string;
-  Phone?: string;
+  MobilePhone?: string;
   Age?: string;
 }
 
 export interface Solution {
-  getBirthdays(date: string, subscriberId: string): Promise<BirthdayData[]>;
+  getBirthdays(subscriberId: string): Promise<BirthdayData[]>;
 }
 
 // Função simples para escolher a solução

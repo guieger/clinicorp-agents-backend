@@ -121,4 +121,83 @@ router.get('/conversation/vinculated', async (req, res) => {
     }
 });
 
+router.post('/activities', async (req, res) => {
+    const { 
+        accountId, 
+        ActivityType, 
+        Active, 
+        ToneOfVoice, 
+        DispatchHour, 
+        DispatchMinute,
+        TemplateType, 
+        TemplateId,
+        HasFollowUp,
+        FollowUpDelayHours
+    } = req.body;
+
+    if (!accountId || !ActivityType) {
+        return res.status(400).json({ error: 'accountId e ActivityType são obrigatórios' });
+    }
+
+    const validActivityTypes = ["birthday", "appointment", "follow_up", "other"];
+
+    if (!validActivityTypes.includes(ActivityType)) {
+        return res.status(400).json({ error: 'ActivityType inválido' });
+    }
+
+    try {
+        const result = await ConfigService.saveConfig({
+            accountId,
+            ActivityType,
+            Active,
+            ToneOfVoice,
+            DispatchHour,
+            DispatchMinute,
+            TemplateType,
+            HasFollowUp,
+            FollowUpDelayHours,
+            TemplateId
+        });
+
+        res.json(result);
+    } catch (error) {
+        handleError(error, res, 'Erro ao salvar configuração de atividades', req);
+    }
+});
+
+router.get('/activities', async (req, res) => {
+    const { accountId } = req.query;
+
+    try {
+
+
+        const activities = await ConfigService.getActivities(accountId as string, {
+            Active: true,
+            ActivityType: true,
+            DispatchHour: true,
+            DispatchMinute: true,
+            FollowUpDelayHours: true,
+            HasFollowUp: true,
+            ToneOfVoice: true,
+            TemplateId: true,
+        });
+
+        res.json(activities);
+    } catch (error) {
+        handleError(error, res, 'Erro ao buscar configurações de atividades', req);
+    }
+});
+
+router.get('/message/templates', async (req, res) => {
+    const { accountId } = req.query;
+
+    try {
+        const templates = await ConfigService.getTemplates(accountId as string);
+
+        res.json(templates);
+    } catch (error) {
+        handleError(error, res, 'Erro ao buscar templates de mensagens', req);
+    }
+});
+
 export default router;

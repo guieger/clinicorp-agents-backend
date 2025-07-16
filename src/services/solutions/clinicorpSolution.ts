@@ -6,10 +6,14 @@ export class ClinicorpSolution implements Solution {
   private username = 'caclinicorp';
   private password = 'd4dbaf1f-99e0-42f0-bed6-19771d6f164c';
 
-  async getBirthdays(date: string, subscriberId: string): Promise<BirthdayData[]> {
+  async getBirthdays(subscriberId: string): Promise<BirthdayData[]> {
     
     try {
+
+      const date = new Date().toISOString().slice(0, 10);
       const url = `${this.baseUrl}/rest/v1/patient/birthdays?subscriber_id=${subscriberId}&date=${date}`;
+
+      console.log('🔥 url >>:', url);
       
       const response = await fetch(url, {
         method: 'GET',

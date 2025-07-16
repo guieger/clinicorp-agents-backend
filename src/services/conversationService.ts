@@ -2,8 +2,8 @@ import { crud } from '../utils/crud';
 import { httpService } from './HttpService';
 import axios from 'axios';
 import { v4 as uuidv4 } from 'uuid';
-import { uploadAudio, generateSignedUrl } from '../utils/googleCloudStorage';
-import { processMessage } from '../lib/agentsSDK';
+import { uploadAudio, generateSignedUrl } from '../utils/googleGcpUtils';
+import { processMessage } from '../lib/agents/agentsSDK';
 
 // Função para verificar se o tipo de mensagem é suportado
 function isMessageTypeSupported(message: string, audioUrl?: string): boolean {
@@ -71,7 +71,7 @@ export const  ConversationService = {
       phone, 
       message, 
       sender, 
-      patientName = "teste",
+      patientName = "",
       status = "created",
       externalId,
       externalAudioUrl
@@ -79,14 +79,18 @@ export const  ConversationService = {
 
     try {
         const normalizedPhone = phone;
+        const messageTimestamp = new Date();
 
+        // 1. Busca conversa primeiro
         const conversation = await crud.findFirst('conversations', {
-            AccountId: accountId,
-            PatientPhone: normalizedPhone
-        }) as { Id: string };
+          AccountId: accountId,
+          PatientPhone: normalizedPhone
+        }) as { Id: string } | null;
 
         let conversationId: string;
+        let conversationWindow: { Id: string; StartedAt: Date; ConversationId: string } | null = null;
 
+        // 2. Cria conversa se não existir
         if (!conversation) {
             const newConversation = await crud.create('conversations', {
                 AccountId: accountId,
@@ -94,8 +98,8 @@ export const  ConversationService = {
                 Channel: "whatsapp",
                 PatientName: patientName,
                 Status: "open",
-                StartedAt: new Date(),
-                LastMessageAt: new Date()
+                StartedAt: messageTimestamp,
+                LastMessageAt: messageTimestamp
             }) as { Id: string };
 
             conversationId = newConversation.Id;
@@ -103,49 +107,119 @@ export const  ConversationService = {
             conversationId = conversation.Id;
         }
 
+        // 3. Busca janela ativa para a conversa específica
+        conversationWindow = await crud.findFirst('conversationWindows', {
+          ConversationId: conversationId,
+          EndedAt: null
+        }) as { Id: string; StartedAt: Date; ConversationId: string } | null;
+
         if (!conversationId) {
             throw new Error('Erro ao criar conversa');
         }
 
-        console.log('🔥 message >>:', message)
+        // 4. Cria janela se não existir
+        if (!conversationWindow) {
+          conversationWindow = await crud.create('conversationWindows', {
+            ConversationId: conversationId,
+            StartedAt: messageTimestamp,
+            EndedAt: null
+          }) as { Id: string; StartedAt: Date; EndedAt: Date | null; ConversationId: string };
+          console.log('🪟 Nova janela de conversa criada:', conversationWindow.Id);
+        }
 
+        // 5. Prepara dados da mensagem
         const messageData: any = {
             ConversationId: conversationId,
             Content: message || "-",
             Sender: sender,
             Type: "text",
             Status: status,
-            Timestamp: new Date(),
+            Timestamp: messageTimestamp,
             PatientName: patientName,
+            ConversationWindowId: conversationWindow?.Id
         };
 
-        // Adiciona campos opcionais se fornecidos
+        // 6. Processa áudio em paralelo com a criação da mensagem (se necessário)
+        let audioPath: string | undefined;
+        if (externalAudioUrl) {
+          // Processa áudio em background para não bloquear
+          this.processAudioUpload({
+            audioUrl: externalAudioUrl,
+            conversationId
+          }).then(audioResult => {
+            if (audioResult.success) {
+              // Atualiza a mensagem com o caminho do áudio
+              crud.update('message', messageData.Id, {
+                AudioPath: audioResult.audioUrl
+              }).catch(error => {
+                console.error('❌ Erro ao atualizar mensagem com áudio:', error);
+              });
+            }
+          }).catch(error => {
+            console.error('❌ Erro ao processar áudio:', error);
+          });
+        }
+
+        // 7. Adiciona campos opcionais
         if (externalId) {
             messageData.ExternalId = externalId;
         }
-        if (externalAudioUrl) {
-            // Processa o upload de áudio usando o método existente
-            const audioResult = await this.processAudioUpload({
-                audioUrl: externalAudioUrl,
-                conversationId
-            });
 
-            if (audioResult.success) {
-                messageData.AudioPath = audioResult.audioUrl;
-            } else {
-                console.error('❌ Erro ao processar áudio:', audioResult.error);
-                // Continua salvando a mensagem mesmo se o áudio falhar
-            }
-        }
-
+        // 8. Cria a mensagem
         const newMessage = await crud.create('message', messageData) as { Id: string };
 
-        return {
-            success: true,
-            data: {
-                conversationId: conversationId,
-                messageId: newMessage.Id
+        // 9. Verifica se precisa criar nova janela (só para mensagens do usuário)
+        if (sender === "user" && conversationWindow) {
+          const twentyFourHoursAgo = new Date(messageTimestamp.getTime() - 24 * 60 * 60 * 1000);
+          
+          // Busca a última mensagem na janela (excluindo a atual)
+          const lastMessageInWindow = await crud.findFirst('message', {
+            ConversationId: conversationId,
+            ConversationWindowId: conversationWindow.Id,
+            Id: {
+              not: newMessage.Id
             }
+          }, undefined, {
+            Timestamp: 'desc'
+          }) as { Timestamp: Date } | null;
+
+          // Se não há mensagem anterior ou se passaram 24h desde a última
+          if (!lastMessageInWindow || lastMessageInWindow.Timestamp < twentyFourHoursAgo) {
+            // Fecha a janela atual e cria nova em uma única transação
+            const [closedWindow, newWindow] = await Promise.all([
+              crud.update('conversationWindows', conversationWindow.Id, {
+                EndedAt: messageTimestamp
+              }),
+              crud.create('conversationWindows', {
+                ConversationId: conversationId,
+                StartedAt: messageTimestamp,
+                EndedAt: null
+              }) as Promise<{ Id: string; StartedAt: Date; EndedAt: Date | null; ConversationId: string }>
+            ]);
+
+            console.log('🪟 Janela de conversa fechada:', conversationWindow.Id);
+            console.log('🪟 Nova janela de conversa criada após fechamento:', newWindow.Id);
+            
+            // Atualiza a mensagem para usar a nova janela
+            await crud.update('message', newMessage.Id, {
+              ConversationWindowId: newWindow.Id
+            });
+
+            conversationWindow = newWindow;
+          }
+        }
+
+        // 10. Atualiza LastMessageAt da conversa em background
+        crud.update('conversations', conversationId, {
+          LastMessageAt: messageTimestamp
+        }).catch(error => {
+          console.error('❌ Erro ao atualizar LastMessageAt:', error);
+        });
+
+        return {
+          conversationId: conversationId,
+          messageId: newMessage.Id,
+          conversationWindowId: conversationWindow?.Id
         }
 
     } catch (error) {
@@ -193,7 +267,7 @@ export const  ConversationService = {
             patientName: senderName,
             status: "sent",
             externalId: providerMessageId,
-            externalAudioUrl: audioUrl
+            externalAudioUrl: audioUrl,
         });
 
 
@@ -205,23 +279,29 @@ export const  ConversationService = {
             saveResult: saveMessageResult
           }
         }
+        
+        // Busca histórico formatado usando método otimizado
+        const history = await this.getFormattedHistoryWithLimit(saveMessageResult?.conversationWindowId, 10);
+
+        console.log('🔥 history >>:', history)
+        console.log('🔥 history JSON >>:', JSON.stringify(history, null, 2))
+        
         // Processa a mensagem com o agente (toda lógica fica na lib)
-        const agentResponse = await processMessage({
-            message: messageContent,
-            externalAudioUrl: audioUrl,
-            providerMessageId
-        });
+        const agentRunResult = await processMessage(messageContent, history);
+
+        console.log('🔥 agentRunResult >>:', agentRunResult)
+        const agentResponse = agentRunResult;
 
         console.log('🔥 agentResponse >>:', agentResponse)
 
         // Envia a resposta se houver
-        if (saveMessageResult.success && agentResponse) {
+        if (saveMessageResult && agentResponse) {
             this.handleSendMessage({
                 accountId: client.Id,
                 phone: patientPhone,
                 message: agentResponse,
-                sender: 'user',
-                editMessageId: undefined
+                sender: 'assistant',
+                editMessageId: undefined,
             });
         }
 
@@ -459,8 +539,8 @@ export const  ConversationService = {
           sender 
         });
 
-        savedMessageId = saveMessageResponse.data.messageId;
-        conversationId = saveMessageResponse.data.conversationId;
+        savedMessageId = saveMessageResponse.messageId;
+        conversationId = saveMessageResponse.conversationId;
       }
 
       console.log('🔥 providerMessageId:', providerMessageId);
@@ -542,8 +622,63 @@ export const  ConversationService = {
 
         return response.data;
     } catch (error) {
-        console.error('❌ Erro ao deletar mensagem:', error)
-        throw error;
+              console.error('❌ Erro ao deletar mensagem:', error)
+      throw error;
+    }
+  },
+
+  // Método otimizado para buscar histórico formatado
+  async getFormattedHistory(conversationWindowId: string) {
+    try {
+      // Busca apenas os campos necessários com ordenação
+      const messages = await crud.findMany('message', {
+        ConversationWindowId: conversationWindowId
+      }, {
+        Content: true,
+        Sender: true,
+        Timestamp: true
+      }, {
+        Timestamp: 'asc'
+      }) as { Content: string, Sender: string, Timestamp: Date }[];
+
+      // Transforma para o formato esperado
+      return messages.map(msg => ({
+        role: msg.Sender === 'user' ? 'user' : 'agent',
+        content: msg.Content
+      }));
+    } catch (error) {
+      console.error('❌ Erro ao buscar histórico formatado:', error);
+      return [];
+    }
+  },
+
+  // Método para buscar histórico com limite (para conversas muito longas)
+  async getFormattedHistoryWithLimit(conversationWindowId: string, limit: number = 50) {
+    try {
+      // Busca as últimas mensagens usando take do Prisma (mais eficiente)
+      const messages = await crud.findMany('message', {
+        ConversationWindowId: conversationWindowId
+      }, {
+        Content: true,
+        Sender: true,
+        Timestamp: true
+      }, {
+        Timestamp: 'desc'
+      }, limit) as { Content: string, Sender: string, Timestamp: Date }[];
+
+      // Inverte para ordem cronológica e transforma
+      return messages.reverse().map(msg => {
+        console.log('🔥 msg >>:', msg)
+        const isUserMessage = msg.Sender === 'patient';
+        
+        return {
+          role: isUserMessage ? 'user' : 'assistant',
+          content: msg.Content // Sempre retorna como texto simples
+        };
+      });
+    } catch (error) {
+      console.error('❌ Erro ao buscar histórico com limite:', error);
+      return [];
     }
   }
 }

@@ -3,13 +3,15 @@
     "version": "1.0.0",
     "main": "dist/server.js",
     "scripts": {
-        "dev": "ts-node-dev src/server.ts",
+        "dev": "ts-node-dev --exit-child src/server.ts",
         "build": "tsc",
         "start": "node dist/server.js"
     },
     "dependencies": {
         "@gomomento/sdk": "^1.111.0",
+        "@google-cloud/scheduler": "^5.3.0",
         "@google-cloud/storage": "^7.16.0",
+        "@google-cloud/tasks": "^6.2.0",
         "@openai/agents": "^0.0.10",
         "@prisma/client": "^6.10.1",
         "@types/uuid": "^10.0.0",
