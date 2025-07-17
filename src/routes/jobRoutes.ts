@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { handleError } from '../utils/errorHandler';
-import { runAgent } from '../lib/agents/agentsSDK';
+import { agentService } from '../lib/agents/agent';
 import { ConfigService } from '../services/configService';
 import { TaskService } from '../services/TaskService';
 
@@ -93,11 +93,11 @@ router.post('/execute_birthdays_task', async (req: Request, res: Response) => {
         if (usingTemplate && templateId) {
             message = await ConfigService.getTemplateMessage(Name, templateId, { Name, BirthDate, Age });
         } else {
-            const agentResult = await runAgent(`
+            const agentResult = await agentService.runAgent(`
                 Escreva uma mensagem de aniversário para esse paciente: ${JSON.stringify({Name, BirthDate, Age})}
                 Com o tom de voz: ${toneOfVoice}
                 Essa mensagem vai ser enviada para o paciente pelo WhatsApp diretamente, então já monte nesse modelo sem me responder com nada, apenas a mensagem.
-            `, []);
+            `);
             
             message = typeof agentResult === 'string' ? agentResult : (agentResult as any).response;
         }

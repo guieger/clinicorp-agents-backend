@@ -45,15 +45,24 @@ async function transcribeAudio(audioPath: string): Promise<string> {
   }
 }
 
-async function runAgent(
+async function runAgentWithHistory(
   input: string,
   history: any[]
 ): Promise<string> {
-  return await agentService.run(input, history);
+  return await agentService.runAgentWithHistory(input, history);
 }
 
-async function processMessage(messageInput: string, history: any[]): Promise<any> {
-  return await runAgent(messageInput, history);
+async function runContextAgent(history: { role: string; content: string }[]): Promise<string> {
+  return await agentService.processContext(history);
 }
 
-export { runAgent, processMessage };
+
+async function processHistoryMessages(messageInput: string, history: any[]): Promise<any> {
+  return await runAgentWithHistory(messageInput, history);
+}
+
+async function processContext(history: any[]): Promise<any> {
+  return await runContextAgent(history);
+}
+
+export { processHistoryMessages, processContext, runContextAgent };

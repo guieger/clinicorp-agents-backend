@@ -199,6 +199,7 @@ model ConversationWindows {
   ConversationId String        @db.Char(36)
   StartedAt      DateTime      @default(now()) @db.Timestamp(0)
   EndedAt        DateTime?     @db.Timestamp(0)
+  Context        String?       @db.VarChar(255)
   Conversations  Conversations @relation(fields: [ConversationId], references: [Id], onDelete: Cascade, map: "ConversationWindows_ibfk_1")
   Message        Message[]
 
