@@ -16,6 +16,29 @@ router.get('/qrcode/image', async (req, res) => {
     }
 });
 
+router.post('/phone/send_code', async (req, res) => {
+    const { accountId, phone } = req.query;
+    try {
+        const sendCode = await ConfigService.getPhoneCode(accountId as string, phone as string)
+        res.status(200).json(sendCode)
+    }
+    catch (error) {
+        handleError(error, res, 'Erro ao enviar código', req);
+    }
+})
+
+router.post('/phone/verify_code', async (req, res) => {
+    const { accountId, phone, code } = req.query;
+    try {
+        // const res = await ConfigService.verifyPhoneCode(accountId as string, phone as string, code as string)
+        // res.status(200).json(res)
+        res.status(200).json("toma essa conexao")
+
+    } catch (error) {
+        handleError(error, res, 'Erro ao enviar código', req);
+    }
+})
+
 router.post('/account/create', async (req, res) => {
     const { name } = req.body;
 
@@ -92,7 +115,7 @@ router.post('/whatsapp/channel/activate', async (req, res) => {
 });
 
 router.post('/conversation/vinculate', async (req, res) => {
-    const { clientId } = req.body;  
+    const { clientId } = req.body;
 
     try {
         const conversationAccount = await ConfigService.vinculateConversation(clientId);
@@ -102,7 +125,7 @@ router.post('/conversation/vinculate', async (req, res) => {
         handleError(error, res, 'Erro ao vincular conta', req);
     }
 
-   
+
 });
 
 router.get('/conversation/vinculated', async (req, res) => {
@@ -122,14 +145,14 @@ router.get('/conversation/vinculated', async (req, res) => {
 });
 
 router.post('/activities', async (req, res) => {
-    const { 
-        accountId, 
-        ActivityType, 
-        Active, 
-        ToneOfVoice, 
-        DispatchHour, 
+    const {
+        accountId,
+        ActivityType,
+        Active,
+        ToneOfVoice,
+        DispatchHour,
         DispatchMinute,
-        TemplateType, 
+        TemplateType,
         TemplateId,
         HasFollowUp,
         FollowUpDelayHours
