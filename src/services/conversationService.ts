@@ -50,7 +50,7 @@ export const  ConversationService = {
     }
   },
   
-  async getConversationWindowContext(conversationWindowId: string){
+  async getJSONConversationWindowContext(conversationWindowId: string){
 
     const history = await this.getHistoryWithLimit(conversationWindowId, 10);
     const context = await processContext(history);
@@ -101,22 +101,30 @@ export const  ConversationService = {
 
         console.log('🔥 lastMessageInWindow >>:', lastMessageInWindow)
 
-        // if (!lastMessageInWindow || lastMessageInWindow.Timestamp < twentyFourHoursAgo) {
+        // if (lastMessageInWindow && lastMessageInWindow.Timestamp < twentyFourHoursAgo) {
 
         // Se não há mensagem anterior ou se passaram 24h desde a última
-        if (!lastMessageInWindow || lastMessageInWindow.Timestamp < twentyFourHoursAgo) {
+        if (true) {
           console.log('🔥 Caiu no if, a mensagem é mais antiga que 24h')
           //TODO - Criar a lógica para salvar o contexto da conversa
-          const windowContext = await this.getConversationWindowContext(conversationWindow.Id);
-          // const windowContext = "teste";
+          const windowContext = await this.getJSONConversationWindowContext(conversationWindow.Id);
 
-          // Fecha a janela atual e cria nova em uma única transação
-          
-          // Executa os dois updates em paralelo
+          const contextJson = JSON.parse(windowContext);
+
+          const conversationContext = contextJson.conversation_context;
+          const assistentActions = contextJson.assistent_actions;
+          const userIntentions = contextJson.user_intentions;
+          const resultsAchieved = contextJson.results_achieved;
+  
+          console.log('🔥 conversationContext >>:', conversationContext)
+
           await Promise.all([
             crud.update('conversationWindows', conversationWindow.Id, {
               EndedAt: messageTimestamp,
-              Context: windowContext
+              Context: conversationContext,
+              AssistentActions: assistentActions,
+              UserIntentions: userIntentions,
+              ResultsAchieved: resultsAchieved
             }),
             crud.update('message', newMessageId, {
               ConversationWindowId: conversationWindow.Id
@@ -691,6 +699,32 @@ export const  ConversationService = {
     } catch (error) {
       console.error('❌ Erro ao buscar histórico com limite:', error);
       return [];
+    }
+  },
+
+  async getConversationWindowByConversation(conversationWindowId: string) {
+    try {
+      const conversationWindow = await crud.findFirst('conversationWindows', {
+        Id: conversationWindowId,
+        EndedAt: {
+          not: null
+        }
+      }) as { Id: string, StartedAt: Date, EndedAt: Date | null, Context: string, AssistentActions: string, UserIntentions: string, ResultsAchieved: string } | null;
+
+      const windowDuration = conversationWindow?.EndedAt ? conversationWindow.EndedAt.getTime() - conversationWindow.StartedAt.getTime() : 0;
+
+      return {
+        StartedAt: conversationWindow?.StartedAt,
+        EndedAt: conversationWindow?.EndedAt,
+        Context: conversationWindow?.Context,
+        WindowDuration: windowDuration,
+        AssistentActions: conversationWindow?.AssistentActions,
+        UserIntentions: conversationWindow?.UserIntentions,
+        ResultsAchieved: conversationWindow?.ResultsAchieved
+      };
+    } catch (error) {
+      console.error('❌ Erro ao buscar janela de conversa:', error);
+      return null;
     }
   }
 }

@@ -57,7 +57,7 @@ router.get('/list_messages', async (req: Request, res: Response) => {
 
     const messages = await ConversationService.listMessages({ accountId: accountId as string });
 
-    return res.json({ messages });
+    return res.json(messages);
   } catch (error) {
     console.error('Erro ao listar mensagens:', error);
     return res.status(500).json({ 

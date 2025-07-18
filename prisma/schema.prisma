@@ -195,13 +195,16 @@ model MessageTemplates {
 }
 
 model ConversationWindows {
-  Id             String        @id @default(dbgenerated("(uuid())")) @db.Char(36)
-  ConversationId String        @db.Char(36)
-  StartedAt      DateTime      @default(now()) @db.Timestamp(0)
-  EndedAt        DateTime?     @db.Timestamp(0)
-  Context        String?       @db.VarChar(255)
-  Conversations  Conversations @relation(fields: [ConversationId], references: [Id], onDelete: Cascade, map: "ConversationWindows_ibfk_1")
-  Message        Message[]
+  Id               String        @id @default(dbgenerated("(uuid())")) @db.Char(36)
+  ConversationId   String        @db.Char(36)
+  StartedAt        DateTime      @default(now()) @db.Timestamp(0)
+  EndedAt          DateTime?     @db.Timestamp(0)
+  Context          String?       @db.VarChar(255)
+  AssistentActions String?       @db.VarChar(255)
+  UserIntentions   String?       @db.VarChar(255)
+  ResultsAchieved  String?       @db.VarChar(255)
+  Conversations    Conversations @relation(fields: [ConversationId], references: [Id], onDelete: Cascade, map: "ConversationWindows_ibfk_1")
+  Message          Message[]
 
   @@index([ConversationId], map: "ConversationId")
 }

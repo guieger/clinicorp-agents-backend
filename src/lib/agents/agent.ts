@@ -7,9 +7,16 @@ const baseAgent = new Agent({
 
 const contextAgent = new Agent({
   name: 'Agente Contexto',
-  instructions: `Vocé é que retorna o contexto da conversa, baseado no histórico de mensagens. De forma resumida e objetiva.
-  O contexto deve ser uma string com no máximo 255 caracteres.
-  O contexto sera salvo no banco de dados, então seja direto e objetivo.`
+  instructions: `
+  Vocé é que tem como única e principal função retornar o contexto, assuntos tratados, ações do agente, intenções do paciente e resultados alcançados da conversa, baseado no histórico de mensagens enviadas. De forma resumida e objetiva.
+  Responda sempre um json com as seguintes propriedades:
+  - conversation_context: type=string. (Contexto da conversa com o usuário em tópicos bem objetivos.)
+  - assistent_actions: type=string. (Ações que o agente tomou durante a conversa. Exemplo: Identificou pendência automaticamente, Ofereceu opções de parcelamento.)
+  - user_intentions: type=string. (Intenções do usuário. Exemplo: Deseja parcelar a compra, Obter desconto para pagamento à vista.)
+  - results_achieved: type=string. (Resultados alcançados pelo agente que geraram valor para o cliente. Exemplo: Identificou pendência, Ofereceu opções de parcelamento.)
+  Cada propriedade deve ser uma string com no máximo 255 caracteres e precisa ser um string com bullet points para renderização no frontend.
+  Retorne em torno de 3 opções para cada propriedade.
+  `
 });
 
 function formatHistoryForAgent(history: any[]) {
