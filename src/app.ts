@@ -6,6 +6,7 @@ import conversationRoutes from './routes/conversationRoutes';
 import configRoutes from './routes/configRoutes';
 import jobRoutes from './routes/jobRoutes';
 import cloudRoutes from './routes/cloudRoutes';
+import agentRoutes from './routes/agentsRoutes';
 import { authMiddleware } from './middleware/authMiddleware';
 
 const app = express();
@@ -28,6 +29,8 @@ app.use('/api/conversation', authMiddleware, conversationRoutes);
 app.use('/api/webhook', webhookRoutes);
 // Configurações 
 app.use('/api/config', configRoutes);
+// Agentes
+app.use('/api/agents', agentRoutes);
 
 app.use('/api/jobs', jobRoutes);
 
