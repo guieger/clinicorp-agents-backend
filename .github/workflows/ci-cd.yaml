@@ -1,0 +1,60 @@
+name: Agents Backend
+
+on:
+  push:
+    branches:
+      - homologation
+  release:
+    types: [published]
+
+env:
+  VERSION: ${{ github.event.release.tag_name || github.sha }}
+  GCP_ARTIFACT_REPO_PATH: ${{ vars.GCP_ARTIFACT_REPO_PATH}}
+  IMAGE_NAME: ${{ vars.IMAGE_NAME }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      image_url: ${{ steps.build_image.outputs.image_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_CREDENTIALS }}
+
+      - name: Configure Docker to use the gcloud command-line tool as a credential helper
+        run: gcloud auth configure-docker us-docker.pkg.dev
+
+      - name: Build and push Docker image
+        id: build-and-push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ env.GCP_ARTIFACT_REPO_PATH }}/${{ env.IMAGE_NAME }}:latest
+            ${{ env.GCP_ARTIFACT_REPO_PATH }}/${{ env.IMAGE_NAME }}:${{ env.VERSION }}
+
+      - name: Set Output Image URL
+        id: build_image
+        run: echo "image_url=${{ env.GCP_ARTIFACT_REPO_PATH }}/${{ env.IMAGE_NAME }}:${{ env.VERSION }}" >> $GITHUB_OUTPUT
+
+  gitops:
+    needs: [build]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger GitOps Update
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          token: ${{ secrets.GIT_TOKEN }}
+          repository: clinicorp/galaxy-cluster
+          event-type: update-agents-backend
+          client-payload: |-
+            {
+              "image": "${{ needs.build.outputs.image_url }}",
+              "release": "${{ github.event_name == 'release' }}",
+              "environment": "${{ github.event_name == 'release' && 'prod' || 'hml' }}"
+            }

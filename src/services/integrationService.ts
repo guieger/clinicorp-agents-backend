@@ -29,6 +29,7 @@ export class IntegrationService {
     // }
 
     // return integration.config as IntegrationConfig;
+    return {};
   }
 
   /**
